@@ -1,0 +1,11 @@
+librosa>=0.10.2
+numpy>=1.26.0
+scipy>=1.11.0
+soundfile>=0.12.1
+matplotlib>=3.8.0
+streamlit>=1.32.0
+scikit-learn>=1.4.0
+plotly>=5.18.0
+audioread>=3.0.1
+huggingface_hub>=0.20.0
+# 可选：torch+transformers → Hubert GTZAN 风格模型
