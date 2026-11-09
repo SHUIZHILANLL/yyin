@@ -169,7 +169,7 @@ def fig_radar(result: AnalysisResult, section_index: int = 0) -> go.Figure:
         showlegend=False,
         height=380,
         margin=dict(l=40, r=40, t=40, b=40),
-        title=f"段落雷达 · {sec.emotion_tag} · {format_time(sec.start)}–{format_time(sec.end)}",
+        title=f"段落雷达 · {sec.label} · {format_time(sec.start)}–{format_time(sec.end)}",
         template="plotly_white",
     )
     return fig
@@ -190,7 +190,6 @@ def fig_timeline(result: AnalysisResult) -> go.Figure:
                 hovertemplate=(
                     f"<b>#{sec.index} {sec.label}</b><br>"
                     f"{format_time(sec.start)} → {format_time(sec.end)}<br>"
-                    f"情绪: {sec.emotion_tag}<br>"
                     f"强度: {sec.intensity:.2f}<br>"
                     f"唤醒/效价: {sec.arousal:.2f} / {sec.valence:.2f}"
                     "<extra></extra>"

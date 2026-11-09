@@ -52,7 +52,6 @@ def main() -> None:
             "start_fmt": format_time(s.start),
             "end_fmt": format_time(s.end),
             "duration": s.duration,
-            "emotion_tag": s.emotion_tag,
             "energy": s.energy,
             "arousal": s.arousal,
             "valence": s.valence,
@@ -84,7 +83,7 @@ def main() -> None:
     for s in result.sections:
         print(
             f"  #{s.index:02d} [{format_time(s.start)}–{format_time(s.end)}] "
-            f"{s.label:16s} | {s.emotion_tag} | 强度={s.intensity:.2f}"
+            f"{s.label:16s} | A={s.arousal:.2f} V={s.valence:.2f} I={s.intensity:.2f}"
         )
     print(f"  JSON → {json_path}")
     print(f"  CSV  → {csv_path}")

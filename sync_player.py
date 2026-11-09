@@ -74,8 +74,33 @@ def render_sync_timeline(
         b64 = base64.b64encode(audio_bytes).decode("ascii")
         audio_src = f"data:{mime};base64,{b64}"
 
+    tempo = float(getattr(result, "tempo", 120.0) or 120.0)
+    raw_beats = getattr(result, "beat_times", None)
+    # 视觉闪光：用检测拍锁定相位，再铺均匀格子（约 66 BPM），避免疏密不均导致忽闪忽不闪
+    target_ibi = 60.0 / 66.0
+    phase0 = 0.0
+    if raw_beats is not None and len(raw_beats) >= 2:
+        beat_arr = np.asarray(raw_beats, dtype=float)
+        beat_arr = beat_arr[np.isfinite(beat_arr)]
+        if len(beat_arr) >= 2:
+            med = float(np.median(np.diff(beat_arr)))
+            # 折到约 55–75 BPM 的拍距
+            while med > 0 and (60.0 / med) > 78 and med < 2.0:
+                med *= 2.0
+            while med > 0 and (60.0 / med) < 52 and med > 0.2:
+                med *= 0.5
+            target_ibi = float(np.clip(med, 60.0 / 78.0, 60.0 / 52.0))
+            phase0 = float(beat_arr[0] % target_ibi)
+    beat_list = [
+        round(float(t), 3)
+        for t in np.arange(phase0, duration + 1e-6, target_ibi)
+        if 0.0 <= t <= duration
+    ]
+
     payload = {
         "duration": duration,
+        "tempo": tempo,
+        "beats": beat_list,
         "sections": sections,
         "ticks": ticks,
         "audioSrc": audio_src,
@@ -102,7 +127,7 @@ def render_sync_timeline(
   }}
   * {{ box-sizing: border-box; }}
   body {{
-    margin: 0; padding: 6px 2px 4px;
+    margin: 0; padding: 2px 0 0;
     font-family: "DM Sans", "Segoe UI", sans-serif;
     color: var(--ink); background: transparent;
   }}
@@ -110,23 +135,23 @@ def render_sync_timeline(
     background: linear-gradient(180deg, #fbfaf7 0%, #f3efe8 100%);
     border: 1px solid var(--line);
     border-radius: 12px;
-    padding: 12px 14px 10px;
+    padding: 8px 12px 6px;
   }}
   .row {{
-    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
   }}
   .clock {{
     font-variant-numeric: tabular-nums;
-    font-size: 22px; font-weight: 700; letter-spacing: 0.02em;
-    min-width: 168px;
+    font-size: 20px; font-weight: 700; letter-spacing: 0.02em;
+    min-width: 156px;
   }}
   .clock span.sep {{ color: var(--muted); font-weight: 500; margin: 0 4px; }}
   .meta {{ flex: 1; font-size: 13px; color: var(--muted); line-height: 1.35; }}
   .meta b {{ color: var(--ink); font-weight: 600; }}
-  audio {{ width: 100%; height: 36px; margin-bottom: 10px; }}
-  .rail-wrap {{ position: relative; padding-top: 4px; user-select: none; }}
+  audio {{ width: 100%; height: 32px; margin-bottom: 6px; }}
+  .rail-wrap {{ position: relative; padding-top: 2px; user-select: none; }}
   .rail {{
-    position: relative; height: 44px; border-radius: 8px;
+    position: relative; height: 36px; border-radius: 8px;
     background: #e8e2d8; overflow: hidden; cursor: pointer;
   }}
   .seg {{
@@ -160,18 +185,18 @@ def render_sync_timeline(
     content: ""; display: block; width: 1px; height: 6px;
     background: #b8b0a4; margin: 0 auto 2px;
   }}
-  .charts {{ margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }}
+  .charts {{ margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }}
   .panel {{
     position: relative; background: var(--panel);
     border: 1px solid var(--line); border-radius: 8px;
     overflow: hidden; cursor: pointer;
   }}
   .panel-title {{
-    position: absolute; left: 8px; top: 4px; z-index: 3;
-    font-size: 11px; color: var(--muted); background: rgba(251,250,247,.85);
+    position: absolute; left: 8px; top: 3px; z-index: 3;
+    font-size: 10px; color: var(--muted); background: rgba(251,250,247,.85);
     padding: 1px 6px; border-radius: 4px; pointer-events: none;
   }}
-  .panel canvas {{ display: block; width: 100%; height: 110px; }}
+  .panel canvas {{ display: block; width: 100%; height: 72px; }}
   .cplay {{
     position: absolute; top: 0; bottom: 0; width: 2px;
     background: var(--play); left: 0; pointer-events: none; z-index: 4;
@@ -185,10 +210,45 @@ def render_sync_timeline(
     margin-right: 4px; vertical-align: -1px;
   }}
   .hint {{ font-size: 11px; color: var(--muted); margin-top: 4px; }}
+  .beat-box {{
+    margin-top: 8px; padding: 8px 10px; border-radius: 10px;
+    border: 2px solid #3a3a3a; background: #0e0e0e; color: #eee;
+  }}
+  .beat-head {{
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 11px; color: #c9c1b6; margin-bottom: 6px;
+  }}
+  .beat-head .tag {{
+    display: inline-block; padding: 1px 7px; border-radius: 999px;
+    background: #8a3a2a; color: #fff; font-weight: 700; font-size: 10px; margin-right: 6px;
+  }}
+  .beat-head b {{ color: #fff; }}
+  .swatch {{
+    display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    vertical-align: -1px; margin: 0 3px;
+  }}
+  .beat-strip {{
+    height: 40px; border-radius: 8px; background: #050505; border: 1px solid #222;
+    position: relative; overflow: hidden;
+  }}
+  .beat-flash {{ position: absolute; inset: 0; opacity: 0; background: #00e676; }}
+  .beat-note {{ text-align: center; font-size: 10px; color: #8f877c; margin-top: 4px; }}
 </style>
 </head>
 <body>
+<!-- beat-inline-v7-stable-pulse -->
 <div class="wrap">
+  <div class="beat-box" id="beatBox">
+    <div class="beat-head">
+      <span><span class="tag">BEAT</span>
+        <span class="swatch" style="background:#00e676"></span>低
+        <span class="swatch" style="background:#ff1744"></span>高 · 约60–75BPM
+      </span>
+      <span>局部 <b id="beatBpm">—</b> BPM · I=<b id="beatI">0.00</b></span>
+    </div>
+    <div class="beat-strip"><div class="beat-flash" id="beatFlash"></div></div>
+    <div class="beat-note">绿=情绪低 · 红=情绪高 · 点下方播放键后闪烁</div>
+  </div>
   <div class="row">
     <div class="clock" id="clock">00:00.0<span class="sep">/</span>00:00.0</div>
     <div class="meta" id="meta">当前段落：—</div>
@@ -209,7 +269,7 @@ def render_sync_timeline(
     <span><i style="background:#c23b22"></i>时间标</span>
   </div>
   <div class="charts" id="charts"></div>
-  <div class="hint">点击色块或曲线区域可跳转 · 红线为当前播放位置（时间线与全曲曲线同步）</div>
+  <div class="hint">点击色块或曲线区域可跳转 · 红线为当前播放位置</div>
 </div>
 <script>
 const DATA = {data_json};
@@ -229,7 +289,103 @@ const meta = document.getElementById("meta");
 const player = document.getElementById("player");
 const chartsEl = document.getElementById("charts");
 const duration = DATA.duration || 1;
+const tempo = Math.max(40, Math.min(220, DATA.tempo || 120));
+const BEATS = (DATA.beats || []).map(Number).filter((x) => isFinite(x)).sort((a,b)=>a-b);
 const curveHeads = [];
+const beatFlash = document.getElementById("beatFlash");
+const beatBox = document.getElementById("beatBox");
+const beatBpm = document.getElementById("beatBpm");
+const beatI = document.getElementById("beatI");
+beatBpm.textContent = tempo.toFixed(1);
+
+function sampleIntensity(t) {{
+  const series = DATA.intensity;
+  const ts = series.t, ys = series.y;
+  if (!ts || !ts.length) return 0.45;
+  if (t <= ts[0]) return ys[0];
+  if (t >= ts[ts.length - 1]) return ys[ys.length - 1];
+  let lo = 0, hi = ts.length - 1;
+  while (hi - lo > 1) {{
+    const mid = (lo + hi) >> 1;
+    if (ts[mid] <= t) lo = mid; else hi = mid;
+  }}
+  const span = ts[hi] - ts[lo] || 1;
+  const u = (t - ts[lo]) / span;
+  return ys[lo] * (1 - u) + ys[hi] * u;
+}}
+
+function mixRgb(i) {{
+  const a = Math.max(0, Math.min(1, i));
+  let r, g, b;
+  if (a < 0.5) {{
+    const u = a / 0.5;
+    r = Math.round(255 * u); g = 230; b = Math.round(40 * (1 - u));
+  }} else {{
+    const u = (a - 0.5) / 0.5;
+    r = 255; g = Math.round(230 * (1 - u)); b = Math.round(20 + 40 * u);
+  }}
+  return [r, g, b];
+}}
+
+function findBeatIndex(t) {{
+  if (!BEATS.length) return -1;
+  let lo = 0, hi = BEATS.length - 1, idx = -1;
+  while (lo <= hi) {{
+    const mid = (lo + hi) >> 1;
+    if (BEATS[mid] <= t + 0.02) {{ idx = mid; lo = mid + 1; }} else hi = mid - 1;
+  }}
+  return idx;
+}}
+
+const VISUAL_IBI = (BEATS.length >= 2)
+  ? Math.max(0.75, Math.min(1.2, BEATS[1] - BEATS[0]))
+  : (60 / 66);
+let lastBeatIdx = -1;
+let lastAudioT = 0;
+let pulse = 0;
+let lastWall = performance.now();
+let smoothI = 0.4;
+const PULSE_DECAY_SEC = 0.38; // 每次拍固定亮这么久，不跟疏密抖动
+
+function updateBeatFlash(t) {{
+  const now = performance.now();
+  const dt = Math.min(0.05, Math.max(0.001, (now - lastWall) / 1000));
+  lastWall = now;
+  const playing = !!(player && !player.paused && !player.ended);
+  const intensity = sampleIntensity(t);
+  smoothI += (intensity - smoothI) * 0.1;
+
+  // 拖动进度条：重置索引，避免连触发或漏触发
+  if (Math.abs(t - lastAudioT) > 0.4) {{
+    lastBeatIdx = findBeatIndex(t);
+  }}
+  lastAudioT = t;
+
+  const idx = findBeatIndex(t);
+  if (playing && idx >= 0 && idx !== lastBeatIdx) {{
+    pulse = 1.0; // 边沿硬触发：过拍必闪
+    lastBeatIdx = idx;
+  }}
+  if (!playing) {{
+    pulse = 0;
+  }} else {{
+    pulse = Math.max(0, pulse - dt / PULSE_DECAY_SEC);
+  }}
+
+  const a = pulse;
+  const [r, g, b] = mixRgb(smoothI);
+  beatFlash.style.background = "rgb(" + r + "," + g + "," + b + ")";
+  beatFlash.style.opacity = a.toFixed(3);
+  beatBpm.textContent = (60 / VISUAL_IBI).toFixed(1);
+  beatI.textContent = intensity.toFixed(2);
+  beatBox.style.borderColor = a > 0.05
+    ? ("rgba(" + r + "," + g + "," + b + "," + (0.55 + 0.45 * a).toFixed(2) + ")")
+    : "#3a3a3a";
+  beatBox.style.boxShadow = a > 0.05
+    ? ("0 0 " + Math.round(14 + a * 32) + "px rgba(" + r + "," + g + "," + b + "," +
+       (0.35 + 0.5 * a).toFixed(2) + ")")
+    : "none";
+}}
 
 DATA.sections.forEach((s) => {{
   const el = document.createElement("div");
@@ -298,7 +454,7 @@ function makePanel(title, drawFn) {{
 function setupCanvas(canvas) {{
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || canvas.parentElement.clientWidth;
-  const h = canvas.clientHeight || 110;
+    const h = canvas.clientHeight || 72;
   canvas.width = Math.max(1, Math.floor(w * dpr));
   canvas.height = Math.max(1, Math.floor(h * dpr));
   const ctx = canvas.getContext("2d");
@@ -402,15 +558,18 @@ function sync(t) {{
     meta.innerHTML = "当前段落：<b>#" + s.index + " " + s.label + "</b> · " +
       fmt(s.start) + "–" + fmt(s.end);
   }}
+  updateBeatFlash(t);
 }}
 
 player.addEventListener("timeupdate", () => sync(player.currentTime || 0));
 player.addEventListener("seeked", () => sync(player.currentTime || 0));
 player.addEventListener("loadedmetadata", () => sync(player.currentTime || 0));
+player.addEventListener("play", () => sync(player.currentTime || 0));
+player.addEventListener("pause", () => sync(player.currentTime || 0));
 window.addEventListener("resize", () => {{ redrawAll(); sync(player.currentTime || 0); }});
 
 function loop() {{
-  if (!player.paused) sync(player.currentTime || 0);
+  sync(player.currentTime || 0);
   requestAnimationFrame(loop);
 }}
 requestAnimationFrame(() => {{ redrawAll(); sync(0); loop(); }});
@@ -418,4 +577,4 @@ requestAnimationFrame(() => {{ redrawAll(); sync(0); loop(); }});
 </body>
 </html>
 """
-    components.html(html_doc, height=height, scrolling=False)
+    components.html(html_doc, height=max(height, 680), scrolling=True)

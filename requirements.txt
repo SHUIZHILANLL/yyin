@@ -4,6 +4,9 @@ scipy>=1.11.0
 soundfile>=0.12.1
 matplotlib>=3.8.0
 streamlit>=1.32.0
+# Streamlit 骨架屏卡死：websockets 17 + 旧 uvicorn 会打断 /_stcore/stream
+uvicorn>=0.52.0
+websockets>=16.1.1,<17
 scikit-learn>=1.4.0
 plotly>=5.18.0
 audioread>=3.0.1

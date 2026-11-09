@@ -62,24 +62,16 @@ def _guess_mime(name: str) -> str:
 
 @st.fragment
 def style_emotion_panel(audio_path: str) -> None:
-    """风格分析在 fragment 内完成，只用 fragment 级 rerun，不重挂载上方播放器。"""
+    """风格在 fragment 内算完后同轮直接渲染，避免 st.rerun(scope=fragment) 在全页上下文报错。"""
     result = st.session_state["result"]
     auto_deep = st.session_state.get("auto_deep", True)
 
-    b1, b2 = st.columns([1, 3])
-    with b1:
-        do_style = st.button(
-            "② 分析风格",
-            use_container_width=True,
-            disabled=result.style is not None,
-            key="btn_style",
-        )
-    with b2:
-        st.caption(
-            "进度："
-            + " → ".join(["核心✓", "风格✓" if result.style else "风格…"])
-            + "　（风格完成不会打断上方播放）"
-        )
+    do_style = st.button(
+        "② 分析风格",
+        use_container_width=True,
+        disabled=result.style is not None,
+        key="btn_style",
+    )
 
     need = result.style is None and (
         do_style or (auto_deep and st.session_state.get("pending_style", False))
@@ -90,9 +82,13 @@ def style_emotion_panel(audio_path: str) -> None:
             result._y = None
             st.session_state["result"] = result
             st.session_state["pending_style"] = False
-        st.rerun(scope="fragment")
 
     result = st.session_state["result"]
+    st.caption(
+        "进度："
+        + " → ".join(["核心✓", "风格✓" if result.style else "风格…"])
+        + "　（风格完成不会打断上方播放）"
+    )
 
     m1, m2 = st.columns(2)
     m1.metric(
@@ -114,7 +110,7 @@ def style_emotion_panel(audio_path: str) -> None:
             options=list(range(len(result.sections))),
             format_func=lambda i: (
                 f"#{result.sections[i].index} {result.sections[i].label} · "
-                f"{result.sections[i].emotion_tag} · I={result.sections[i].intensity:.2f}"
+                f"I={result.sections[i].intensity:.2f}"
             ),
             key="sec_pick",
         )
@@ -122,7 +118,7 @@ def style_emotion_panel(audio_path: str) -> None:
         st.markdown(
             f"**#{sec.index} {sec.label}**　"
             f"`{format_time(sec.start)}`–`{format_time(sec.end)}`　"
-            f"情绪：**{sec.emotion_tag}**　A={sec.arousal:.2f} V={sec.valence:.2f} I={sec.intensity:.2f}"
+            f"A={sec.arousal:.2f} V={sec.valence:.2f} I={sec.intensity:.2f}"
         )
         try:
             st.audio(_audio_bytes_for_range(audio_path, sec.start, sec.end), format="audio/wav")
@@ -138,7 +134,6 @@ def style_emotion_panel(audio_path: str) -> None:
                 "标签": s.label,
                 "开始": format_time(s.start),
                 "结束": format_time(s.end),
-                "情绪标签": s.emotion_tag,
                 "能量": s.energy,
                 "唤醒度": s.arousal,
                 "效价": s.valence,
@@ -241,6 +236,7 @@ c5.metric("算法", result.method)
 
 # 播放器在 fragment 外：风格 fragment rerun 不会重挂载它
 st.subheader("原曲播放 · 曲式时间线 / 全曲曲线同步")
-render_sync_timeline(result, audio_bytes, mime=audio_mime, height=980)
+# height 带版本后缀意图：迫使 Streamlit 重挂载 iframe，避免旧播放器缓存
+render_sync_timeline(result, audio_bytes, mime=audio_mime, height=703)
 
 style_emotion_panel(audio_path)
