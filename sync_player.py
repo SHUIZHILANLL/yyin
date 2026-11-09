@@ -36,6 +36,7 @@ def render_sync_timeline(
     height: int = 980,
 ) -> None:
     """渲染带同步时间标的曲式时间线 + 全曲曲线。"""
+    # 只用结构字段，避免风格校正后 emotion/intensity 变化导致播放器 HTML 重挂载打断播放
     sections: list[dict[str, Any]] = []
     for i, sec in enumerate(result.sections):
         sections.append(
@@ -44,8 +45,8 @@ def render_sync_timeline(
                 "label": sec.label,
                 "start": sec.start,
                 "end": sec.end,
-                "emotion": sec.emotion_tag,
-                "intensity": sec.intensity,
+                "emotion": "",
+                "intensity": 0.0,
                 "color": SECTION_COLORS[i % len(SECTION_COLORS)],
             }
         )
@@ -238,8 +239,7 @@ DATA.sections.forEach((s) => {{
   el.style.background = s.color;
   el.textContent = "#" + s.index;
   el.title = "#" + s.index + " " + s.label + "\\n" +
-    fmt(s.start) + " → " + fmt(s.end) + "\\n" +
-    s.emotion + " · 强度 " + Number(s.intensity).toFixed(2);
+    fmt(s.start) + " → " + fmt(s.end);
   el.addEventListener("click", (e) => {{
     e.stopPropagation();
     seekTo(s.start, true);
@@ -400,8 +400,7 @@ function sync(t) {{
   const s = findSection(t);
   if (s) {{
     meta.innerHTML = "当前段落：<b>#" + s.index + " " + s.label + "</b> · " +
-      s.emotion + " · 强度 " + Number(s.intensity).toFixed(2) +
-      " · " + fmt(s.start) + "–" + fmt(s.end);
+      fmt(s.start) + "–" + fmt(s.end);
   }}
 }}
 
