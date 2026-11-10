@@ -75,6 +75,7 @@ def _ensure_deps() -> None:
         import streamlit  # noqa: F401
         import librosa  # noqa: F401
         import plotly  # noqa: F401
+        import madmom_infer  # noqa: F401
     except ImportError:
         print("[yyin] 缺少依赖，正在安装 requirements.txt …")
         subprocess.check_call(

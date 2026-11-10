@@ -11,4 +11,6 @@ scikit-learn>=1.4.0
 plotly>=5.18.0
 audioread>=3.0.1
 huggingface_hub>=0.20.0
-# 可选：torch+transformers → Hubert GTZAN 风格模型
+# 拍点：madmom RNN+DBN（Böck ISMIR）；失败则回退 librosa
+madmom-infer>=0.2.0
+# 可选：torch+transformers → Hubert GTZAN / beat_this

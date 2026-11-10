@@ -75,32 +75,33 @@ def render_sync_timeline(
         audio_src = f"data:{mime};base64,{b64}"
 
     tempo = float(getattr(result, "tempo", 120.0) or 120.0)
-    raw_beats = getattr(result, "beat_times", None)
-    # 视觉闪光：用检测拍锁定相位，再铺均匀格子（约 66 BPM），避免疏密不均导致忽闪忽不闪
-    target_ibi = 60.0 / 66.0
-    phase0 = 0.0
-    if raw_beats is not None and len(raw_beats) >= 2:
-        beat_arr = np.asarray(raw_beats, dtype=float)
-        beat_arr = beat_arr[np.isfinite(beat_arr)]
-        if len(beat_arr) >= 2:
-            med = float(np.median(np.diff(beat_arr)))
-            # 折到约 55–75 BPM 的拍距
-            while med > 0 and (60.0 / med) > 78 and med < 2.0:
-                med *= 2.0
-            while med > 0 and (60.0 / med) < 52 and med > 0.2:
-                med *= 0.5
-            target_ibi = float(np.clip(med, 60.0 / 78.0, 60.0 / 52.0))
-            phase0 = float(beat_arr[0] % target_ibi)
-    beat_list = [
-        round(float(t), 3)
-        for t in np.arange(phase0, duration + 1e-6, target_ibi)
-        if 0.0 <= t <= duration
-    ]
+    _rb = getattr(result, "beat_times", None)
+    _rd = getattr(result, "downbeat_times", None)
+    raw_beats = np.asarray([] if _rb is None else _rb, dtype=float).ravel()
+    raw_downs = np.asarray([] if _rd is None else _rd, dtype=float).ravel()
+    raw_beats = raw_beats[np.isfinite(raw_beats)]
+    raw_downs = raw_downs[np.isfinite(raw_downs)]
+    # 真实拍点（madmom DBN / librosa）；视觉过快（>90BPM）时改用小节正拍
+    # 闪光跟分析层拍点走（已含动态 octave）；仅极端密（>175BPM）才隔一取一
+    if len(raw_beats) >= 2:
+        med_bpm = 60.0 / max(float(np.median(np.diff(raw_beats))), 1e-6)
+        flash_beats = raw_beats
+        flash_mode = "beat"
+        if med_bpm > 175:
+            flash_beats = flash_beats[0::2]
+            flash_mode = "beat/2"
+    else:
+        step = 60.0 / max(min(tempo, 140.0), 70.0)
+        flash_beats = np.arange(0.0, duration, step)
+        flash_mode = "metro"
+    beat_list = [round(float(t), 3) for t in flash_beats if 0.0 <= t <= duration]
 
     payload = {
         "duration": duration,
         "tempo": tempo,
         "beats": beat_list,
+        "beatMode": flash_mode,
+        "beatBackend": str(getattr(result, "beat_backend", "librosa")),
         "sections": sections,
         "ticks": ticks,
         "audioSrc": audio_src,
@@ -236,7 +237,7 @@ def render_sync_timeline(
 </style>
 </head>
 <body>
-<!-- beat-inline-v7-stable-pulse -->
+<!-- beat-inline-v9-octave -->
 <div class="wrap">
   <div class="beat-box" id="beatBox">
     <div class="beat-head">
@@ -247,7 +248,7 @@ def render_sync_timeline(
       <span>局部 <b id="beatBpm">—</b> BPM · I=<b id="beatI">0.00</b></span>
     </div>
     <div class="beat-strip"><div class="beat-flash" id="beatFlash"></div></div>
-    <div class="beat-note">绿=情绪低 · 红=情绪高 · 点下方播放键后闪烁</div>
+    <div class="beat-note">绿=低 · 红=高 · <span id="beatMode">—</span> · 点下方播放后闪烁</div>
   </div>
   <div class="row">
     <div class="clock" id="clock">00:00.0<span class="sep">/</span>00:00.0</div>
@@ -297,6 +298,8 @@ const beatBox = document.getElementById("beatBox");
 const beatBpm = document.getElementById("beatBpm");
 const beatI = document.getElementById("beatI");
 beatBpm.textContent = tempo.toFixed(1);
+const beatModeEl = document.getElementById("beatMode");
+if (beatModeEl) beatModeEl.textContent = (DATA.beatBackend || "") + "/" + (DATA.beatMode || "beat");
 
 function sampleIntensity(t) {{
   const series = DATA.intensity;

@@ -2,6 +2,24 @@
 
 上传一首歌，自动划分曲式段落，估计情绪（效价 / 唤醒 / 强度）与风格，并在播放时用时间线、全曲曲线和拍点色条同步展示。
 
+## 界面预览
+
+同步播放器（曲式色条 + 波形 / 能量 / 唤醒·效价 / 强度 + **BEAT** 闪色）：
+
+![同步播放器](docs/screenshots/ui_player.png)
+
+全曲概览曲线（段落边界对齐）：
+
+![全曲概览](docs/screenshots/01_overview.png)
+
+曲式时间线：
+
+![曲式时间线](docs/screenshots/03_timeline.png)
+
+段级能量 / 唤醒 / 效价 / 强度：
+
+![段级指数](docs/screenshots/04_bars.png)
+
 ## 能做什么
 
 1. **结构分段**  
@@ -16,7 +34,7 @@
 
 4. **同步播放器**  
    原曲 + 曲式色条 + 波形 / 能量 / 唤醒·效价 / 强度曲线，红线跟播。  
-   顶部 **BEAT** 色条：按稳定视觉拍网格闪光，**绿=强度低、红=强度高**，亮度一致。
+   顶部 **BEAT** 色条：优先 **madmom_infer**（RNN + DBN，Böck et al. / ISMIR）真实拍点与小节正拍；过快时自动倍频/降频对齐听感。**绿=强度低、红=强度高**，亮度一致。
 
 5. **一键启动**  
    Windows 双击 `启动.bat`，或 `python launch.py`（默认 <http://127.0.0.1:8501>）。
@@ -37,17 +55,19 @@ streamlit run app.py
 | 文件 | 说明 |
 |------|------|
 | `app.py` | Streamlit 界面（分阶段 + fragment） |
-| `analyzer.py` | 核心分析流水线、稳定拍点提取 |
+| `analyzer.py` | 核心分析流水线 |
 | `structure.py` | Foote / 谱聚类分段 |
 | `emotion.py` | 情绪曲线稳定化与段级软缩放 |
 | `style.py` | 风格估计 |
+| `beats.py` | madmom_infer / librosa 拍点与正拍 + 倍频消歧 |
 | `sync_player.py` | 同步时间线 + BEAT 闪色 |
 | `launch.py` / `启动.bat` | 启动器（含端口占用与依赖修复） |
 
 ## 依赖说明
 
 - 需 `uvicorn>=0.52` 且 `websockets<17`，否则 Streamlit 可能一直骨架屏。  
-- 可选：安装 `torch` + `transformers` 可启用 Hubert GTZAN 风格模型。
+- 可选：安装 `torch` + `transformers` 可启用 Hubert GTZAN 风格模型。  
+- 拍点：`madmom-infer`（可选，缺省回退 librosa）。
 
 ## 分析采样率
 

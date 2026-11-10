@@ -237,6 +237,6 @@ c5.metric("算法", result.method)
 # 播放器在 fragment 外：风格 fragment rerun 不会重挂载它
 st.subheader("原曲播放 · 曲式时间线 / 全曲曲线同步")
 # height 带版本后缀意图：迫使 Streamlit 重挂载 iframe，避免旧播放器缓存
-render_sync_timeline(result, audio_bytes, mime=audio_mime, height=703)
+render_sync_timeline(result, audio_bytes, mime=audio_mime, height=705)
 
 style_emotion_panel(audio_path)

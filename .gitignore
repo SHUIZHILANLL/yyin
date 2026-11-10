@@ -21,3 +21,6 @@ Thumbs.db
 models/
 *.pb
 *.onnx
+
+.streamlit/credentials.toml
+
